@@ -1,20 +1,25 @@
 #install required packages for RNA-seq tutorial
 
-packages <- c("TCGAbiolinks","SummarizedExperiment","tibble",
-              "ggplot2","dplyr","DESeq2", "clusterProfiler")
+# Install BiocManager first
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")}
+
+# Bioconductor packages
+bioc_packages <- c("TCGAbiolinks", "SummarizedExperiment", "DESeq2", "clusterProfiler")
+
+# CRAN packages
+cran_packages <- c("tibble", "ggplot2", "dplyr")
 
 installed <- rownames(installed.packages())
 
-for (pkg in packages) {
+for (pkg in bioc_packages) {
+  if (!pkg %in% installed) {
+    BiocManager::install(pkg, update = FALSE, ask = FALSE)
+  }
+}
+
+for (pkg in cran_packages) {
   if (!pkg %in% installed) {
     install.packages(pkg, dependencies = TRUE)
   }
 }
-
-library(TCGAbiolinks)
-library(SummarizedExperiment)
-library(dplyr)
-library(tibble)
-library(DESeq2)
-library(ggplot2)
-library(clusterProfiler)
