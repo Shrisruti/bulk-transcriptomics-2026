@@ -52,19 +52,19 @@ load("data/tcga_hnsc_genes.RData")
 table(samples$sample_type)  # check sample_type - Primary Tumor vs Solid Tissue Normal are the usual two groups
 genes <- rowData(data)
 
-# DESeq2 needs the counts and colData in the same sample order — TCGAbiolinks
-# preserves this automatically since both come from the same data_clean object
+#DESeq2 needs the counts and colData in the same sample order — TCGAbiolinks
+#preserves this automatically since both come from the same data_clean object
 #create the S4 DESeq2 object
 dds <- DESeqDataSetFromMatrix(countData = counts, colData = samples,
   design = ~sample_type)
 
-# remove genes with essentially no expression across all samples
-# exercise 1: Explain what is stored in the varibale 'keep'
+#remove genes with essentially no expression across all samples
+#exercise 1: Explain what is stored in the varibale 'keep'
 keep <- rowSums(counts(dds) >= 10) >= 3 
-# exercise 2: How many genes have been dropped?
+#exercise 2: How many genes have been dropped?
 dds <- dds[keep, ] 
 
-# set the reference level explicitly
+#set the reference level explicitly
 dds$sample_type <- relevel(factor(dds$sample_type), ref = "Solid Tissue Normal")
 
 #estimate the size factors
@@ -84,59 +84,58 @@ dds <- DESeq(dds)
 res <- results(dds)
 summary(res)
 
-# shrink log2FC for reliable ranking (needed for GSEA later)
+#shrink log2FC for reliable ranking (needed for GSEA later)
 #if you have problems with apeglm library - do not worry and skip this step
 res_shrunk <- lfcShrink(dds, coef = "sample_type_Primary.Tumor_vs_Solid.Tissue.Normal",
                         type = "apeglm")
 
-# tidy into a data frame, map to gene symbols
+#tidy into a data frame, map to gene symbols
 res_df <- as.data.frame(res_shrunk) %>%
   rownames_to_column("gene_id") %>%
   left_join(as.data.frame(genes1) %>% select(gene_id, gene_name), by = "gene_id") %>%
   arrange(padj)
 
 deg <- res_df %>% filter(!is.na(padj), padj < 0.05, abs(log2FoldChange) > 1)
-
 #exercise 5: How to get up and down regulated genes here?
 
 write.csv(res_df, "deseq2_results_full.csv", row.names = FALSE)
 write.csv(deg, "deseq2_significant_genes.csv", row.names = FALSE)
 
-#ORA - clusterProfiler
+############### Enrichment analysis ###############
+#Over representation analysis - clusterProfiler
 library(clusterProfiler)
 library(org.Hs.eg.db)
 
-# ORA needs Entrez IDs — map from gene_name (SYMBOL)
+# ORA needs Entrez IDs - map from gene_name (SYMBOL)
 deg_entrez <- bitr(deg$gene_name, fromType = "SYMBOL", toType = "ENTREZID",
                    OrgDb = org.Hs.eg.db, drop = TRUE)
-#GO database
+# use GO database as reference
 ego <- enrichGO(gene = deg_entrez$ENTREZID, OrgDb = org.Hs.eg.db,
                 keyType = "ENTREZID", ont = "BP",
                 pAdjustMethod = "BH", pvalueCutoff = 0.05, readable = TRUE)
 
 dotplot(ego, showCategory = 20)
 
-#KEGG database
+#use KEGG database as reference
 ekegg <- enrichKEGG(gene = deg_entrez$ENTREZID, organism = "hsa", pvalueCutoff = 0.05)
 dotplot(ekegg, showCategory = 20)
 
-#GSEA - using all genes
-# build ranked gene list from the FULL results table (res_df), not `deg`
-gsea_input <- res_df %>%
-  filter(!is.na(padj), !is.na(gene_name)) %>%
+# GSEA - using all genes
+# build ranked gene list from the FULL results table (res_df), not deg
+gsea_input <- res_df %>% filter(!is.na(padj), !is.na(gene_name)) %>%
   distinct(gene_name, .keep_all = TRUE)
 
 # map to Entrez for org.Hs.eg.db-based GSEA
 gsea_entrez <- bitr(gsea_input$gene_name, fromType = "SYMBOL", toType = "ENTREZID",
                     OrgDb = org.Hs.eg.db, drop = TRUE)
 
-gsea_input <- gsea_input %>%
-  inner_join(gsea_entrez, by = c("gene_name" = "SYMBOL"))
+gsea_input <- gsea_input %>% inner_join(gsea_entrez, by = c("gene_name" = "SYMBOL"))
 
 ranked_genes <- gsea_input$log2FoldChange
 names(ranked_genes) <- gsea_input$ENTREZID
 ranked_genes <- sort(ranked_genes, decreasing = TRUE)
 
+#GO database
 gsea_go <- gseGO(geneList = ranked_genes, OrgDb = org.Hs.eg.db,
                  ont = "BP", keyType = "ENTREZID",
                  pvalueCutoff = 0.05, verbose = FALSE)
@@ -144,11 +143,12 @@ dotplot(gsea_go, showCategory = 20)
 #ridgeplot(gsea_go)
 enrichplot::gseaplot2(gsea_go, geneSetID = 1)   # enrichment plot for the top term
 
+#KEGG database
 gsea_kegg <- gseKEGG(geneList = ranked_genes, organism = "hsa",
                      pvalueCutoff = 0.05, verbose = FALSE)
 
 dotplot(gsea_kegg, showCategory = 20)
-ridgeplot(gsea_kegg)
+#ridgeplot(gsea_kegg)
 gseaplot2(gsea_kegg, geneSetID = 1)
 
 
