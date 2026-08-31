@@ -1,77 +1,91 @@
-#downloading transcriptome data from TCGA - HNSC firehose legacy
+#load the necessary libraries
 library(TCGAbiolinks)
 library(SummarizedExperiment)
 library(dplyr)
 library(tibble)
 
+library(DESeq2)
+library(apeglm)
+
+############ DO NOT RUN THE CODE - START ###############
+#downloading transcriptome data from TCGA - HNSC firehose legacy
 clin <- GDCquery_clinic(project = "TCGA-HNSC", type = "clinical")
 table(clin$tissue_or_organ_of_origin) 
+#Result - "Tongue, NOS", "Base of tongue, NOS", "Border of tongue","Ventral surface of tongue, NOS
 
-#"Tongue, NOS", "Base of tongue, NOS", "Border of tongue","Ventral surface of tongue, NOS
+#store the sample ids of all the patients with tongue as the tissue of origin
 tongue_samples <- clin[grep("tongue", clin$tissue_or_organ_of_origin, ignore.case = TRUE),]
 table(tongue_samples$tissue_or_organ_of_origin)
 
+#fetch the rnaseq data for the selected patient ids
 query <- GDCquery(project = "TCGA-HNSC",data.category = "Transcriptome Profiling",
   data.type = "Gene Expression Quantification",barcode = tongue_samples$submitter_id,
   workflow.type = "STAR - Counts",access = "open")
-
 sample_info <- getResults(query)
 nrow(sample_info)
 GDCdownload(query = query, method = "api", files.per.chunk = 20) 
 data <- GDCprepare(query = query)
-
 genes <- rowData(data)
 
+#select and retain only protein coding genes
 if ("gene_type" %in% colnames(genes)) {
   protein_coding <- genes$gene_type == "protein_coding"
   data_clean <- data[protein_coding, ]
 } else {
   data_clean <- data
 }
-
+#from the assaydata store the counts and sample metadata
 counts  <- assay(data_clean, "unstranded")
 samples <- colData(data_clean)
 genes1  <- rowData(data_clean)
 
-save(data, data_clean, counts, samples, genes1, 
-     file = "tcga_hnsc_tongue_clean.RData")
+save(counts, file = "data/tcga_hnsc_counts.RData")
+save(samples, file = "data/tcga_hnsc_samples.RData")
+save(genes1, file = "data/tcga_hnsc_genes.RData")
+############ DO NOT RUN THE CODE - END ###############
 
-table(samples$sample_type)  # check sample_type — Primary Tumor vs Solid Tissue Normal are the usual two groups
+#load the necessary data files
+load("data/tcga_hnsc_counts.RData")
+load("data/tcga_hnsc_samples.RData")
+load("data/tcga_hnsc_genes.RData")
+
+table(samples$sample_type)  # check sample_type - Primary Tumor vs Solid Tissue Normal are the usual two groups
 genes <- rowData(data)
-table(samples$sample_type) #has solid tissue normal from tongue
-
-library(DESeq2)
-library(apeglm)
 
 # DESeq2 needs the counts and colData in the same sample order — TCGAbiolinks
 # preserves this automatically since both come from the same data_clean object
-dds <- DESeqDataSetFromMatrix(countData = counts, colData   = samples,
-  design    = ~sample_type)
+#create the S4 DESeq2 object
+dds <- DESeqDataSetFromMatrix(countData = counts, colData = samples,
+  design = ~sample_type)
 
 # remove genes with essentially no expression across all samples
-keep <- rowSums(counts(dds) >= 10) >= 3
-dds <- dds[keep, ]
+# exercise 1: Explain what is stored in the varibale 'keep'
+keep <- rowSums(counts(dds) >= 10) >= 3 
+# exercise 2: How many genes have been dropped?
+dds <- dds[keep, ] 
 
-# set the reference level explicitly so log2FC direction is unambiguous
+# set the reference level explicitly
 dds$sample_type <- relevel(factor(dds$sample_type), ref = "Solid Tissue Normal")
 
+#estimate the size factors
 dds <- estimateSizeFactors(dds)
 sizeFactors(dds)
 barplot(sizeFactors(dds), las = 2, main = "Size factors per sample") 
-# quick sanity check — size factors shouldn't vary wildly if libraries are comparable
 
+#estimate dispersions
 dds <- estimateDispersions(dds)
-plotDispEsts(dds)
+plotDispEsts(dds) #exercise 3: Explain the plot
 
 dds <- nbinomWaldTest(dds)
 resultsNames(dds)
 
-dds <- DESeq(dds) #go through the message on the console and connect it to the lecture
+#exerice 4: Go through the message on the console and connect it to the lecture
+dds <- DESeq(dds) 
 res <- results(dds)
-
 summary(res)
 
 # shrink log2FC for reliable ranking (needed for GSEA later)
+#if you have problems with apeglm library - do not worry and skip this step
 res_shrunk <- lfcShrink(dds, coef = "sample_type_Primary.Tumor_vs_Solid.Tissue.Normal",
                         type = "apeglm")
 
@@ -83,7 +97,7 @@ res_df <- as.data.frame(res_shrunk) %>%
 
 deg <- res_df %>% filter(!is.na(padj), padj < 0.05, abs(log2FoldChange) > 1)
 
-#how to get up and down regulated gene here?
+#exercise 5: How to get up and down regulated genes here?
 
 write.csv(res_df, "deseq2_results_full.csv", row.names = FALSE)
 write.csv(deg, "deseq2_significant_genes.csv", row.names = FALSE)
