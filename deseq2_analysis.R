@@ -1,13 +1,8 @@
+############ DO NOT RUN THE CODE - START ###############
 #load the necessary libraries
 library(TCGAbiolinks)
 library(SummarizedExperiment)
-library(dplyr)
-library(tibble)
 
-library(DESeq2)
-library(apeglm)
-
-############ DO NOT RUN THE CODE - START ###############
 #downloading transcriptome data from TCGA - HNSC firehose legacy
 clin <- GDCquery_clinic(project = "TCGA-HNSC", type = "clinical")
 table(clin$tissue_or_organ_of_origin) 
@@ -44,6 +39,12 @@ save(samples, file = "data/tcga_hnsc_samples.RData")
 save(genes1, file = "data/tcga_hnsc_genes.RData")
 
 ############ DO NOT RUN THE CODE - END ###############
+#load necessary packages
+
+library(dplyr)
+library(tibble)
+library(DESeq2)
+library(apeglm)
 
 #load the necessary data files
 load("data/tcga_hnsc_counts.RData")
