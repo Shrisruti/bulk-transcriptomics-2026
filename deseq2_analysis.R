@@ -76,10 +76,22 @@ barplot(sizeFactors(dds), las = 2, main = "Size factors per sample")
 dds <- estimateDispersions(dds)
 plotDispEsts(dds) #exercise 3: Explain the plot
 
+#QC: PCA to check sample segregation
+library(ggplot2)
+library(ggrepel)   # for non-overlapping sample labels
+
+# variance-stabilizing transformation for QC — blind=TRUE ignores the design formula 
+#the PCA reflects raw structure in the data
+vsd <- vst(dds, blind = TRUE)
+
+# quick built-in PCA plot
+plotPCA(vsd, intgroup = "sample_type")
+#exercise 4: Do tumor and normal samples separate cleanly along PC1? 
+
 dds <- nbinomWaldTest(dds)
 resultsNames(dds)
 
-#exerice 4: Go through the message on the console and connect it to the lecture
+#exercise 5: Go through the message on the console and connect it to the lecture
 dds <- DESeq(dds) 
 res <- results(dds)
 summary(res)
