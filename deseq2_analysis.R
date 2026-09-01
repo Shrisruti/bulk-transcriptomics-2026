@@ -77,9 +77,6 @@ dds <- estimateDispersions(dds)
 plotDispEsts(dds) #exercise 3: Explain the plot
 
 #QC: PCA to check sample segregation
-library(ggplot2)
-library(ggrepel)   # for non-overlapping sample labels
-
 # variance-stabilizing transformation for QC — blind=TRUE ignores the design formula 
 #the PCA reflects raw structure in the data
 vsd <- vst(dds, blind = TRUE)
