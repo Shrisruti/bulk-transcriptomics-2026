@@ -5,7 +5,7 @@ if (!requireNamespace("BiocManager", quietly = TRUE)) {
   install.packages("BiocManager")}
 
 # Bioconductor packages
-bioc_packages <- c("TCGAbiolinks", "SummarizedExperiment", "DESeq2", "enrichplot", "org.Hs.eg.db", "clusterProfiler", "GSEA")
+bioc_packages <- c("TCGAbiolinks", "SummarizedExperiment", "DESeq2", "enrichplot", "org.Hs.eg.db", "clusterProfiler", "GSEA", "apeglm")
 
 # CRAN packages
 cran_packages <- c("tibble", "ggplot2", "dplyr")
